@@ -222,3 +222,6 @@ voice-detection/venv/
 
 # Local audio samples used for testing
 voice-detection/samples/
+
+# Voice deepfake training dataset
+voice-detection/data/
