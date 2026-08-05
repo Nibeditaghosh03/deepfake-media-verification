@@ -219,3 +219,6 @@ __marimo__/
 
 # Voice detection Python environment
 voice-detection/venv/
+
+# Local audio samples used for testing
+voice-detection/samples/
