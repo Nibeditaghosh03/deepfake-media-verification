@@ -127,3 +127,44 @@ h1 {
   font-size: 13px;
   color: #7d838f;
 }
+
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.tab {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid #2b2f3a;
+  background: #1a1d24;
+  color: #9aa0aa;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: #2b2f3a;
+  color: #eaeaea;
+  border-color: #4a5060;
+}
+
+.panel.hidden {
+  display: none;
+}
+
+.text-input {
+  width: 100%;
+  background: #1a1d24;
+  border: 1px solid #2b2f3a;
+  border-radius: 12px;
+  color: #eaeaea;
+  font-size: 15px;
+  font-family: inherit;
+  padding: 16px;
+  resize: vertical;
+  margin-bottom: 16px;
+}

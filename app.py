@@ -1,47 +1,54 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
+
 import os
 import tempfile
 import traceback
 
 from detect import predict
+from text_detect import detect_text
 
 
 app = Flask(__name__)
 CORS(app)
 
 
-# ---------------------------------------------------------
+# =========================================================
 # HOME PAGE
-# ---------------------------------------------------------
+# =========================================================
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-# ---------------------------------------------------------
+# =========================================================
 # HEALTH CHECK
-# ---------------------------------------------------------
+# =========================================================
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "ok",
-        "message": "Voice Deepfake Detection API is running"
+        "message": "Voice and Text Deepfake Detection API is running"
     })
 
 
-# ---------------------------------------------------------
-# DETECT AUDIO FILE
-# ---------------------------------------------------------
+# =========================================================
+# VOICE DEEPFAKE DETECTION
+# =========================================================
 
 @app.route("/predict", methods=["POST"])
 def predict_audio():
 
+    temp_path = None
+
     try:
 
+        # -------------------------------------------------
         # Check whether a file was uploaded
+        # -------------------------------------------------
+
         if "file" not in request.files:
             return jsonify({
                 "success": False,
@@ -50,7 +57,10 @@ def predict_audio():
 
         file = request.files["file"]
 
+        # -------------------------------------------------
         # Check filename
+        # -------------------------------------------------
+
         if file.filename == "":
             return jsonify({
                 "success": False,
@@ -74,41 +84,44 @@ def predict_audio():
             file.save(temp_file.name)
             temp_path = temp_file.name
 
-        try:
+        # -------------------------------------------------
+        # Run voice AI detector
+        # -------------------------------------------------
 
-            # -------------------------------------------------
-            # Run the AI detector
-            # -------------------------------------------------
+        label, confidence, prob_dict = predict(temp_path)
 
-            label, confidence, prob_dict = predict(temp_path)
+        # -------------------------------------------------
+        # Safely convert probabilities
+        # -------------------------------------------------
 
-            # -------------------------------------------------
-            # Safely convert probabilities
-            # -------------------------------------------------
+        breakdown = {}
 
-            breakdown = {}
+        if prob_dict:
 
             for key, value in prob_dict.items():
 
                 try:
 
-                    # Normal scalar
+                    # Normal number
                     if isinstance(value, (int, float)):
                         numeric_value = float(value)
 
-                    # Handle numpy values
+                    # NumPy scalar
                     elif hasattr(value, "item"):
                         numeric_value = float(value.item())
 
-                    # Handle list / tuple / numpy array
+                    # List / tuple / array
                     elif hasattr(value, "__len__"):
+
                         if len(value) > 0:
+
                             first_value = value[0]
 
                             if hasattr(first_value, "item"):
                                 numeric_value = float(first_value.item())
                             else:
                                 numeric_value = float(first_value)
+
                         else:
                             numeric_value = 0.0
 
@@ -124,67 +137,56 @@ def predict_audio():
 
                     breakdown[str(key)] = str(value)
 
-            # -------------------------------------------------
-            # Normalize label
-            # -------------------------------------------------
+        # -------------------------------------------------
+        # Normalize voice label
+        # -------------------------------------------------
 
-            label = str(label).upper()
+        label = str(label).upper()
 
-            if "FAKE" in label or "SPOOF" in label:
+        if "FAKE" in label or "SPOOF" in label:
+            final_label = "FAKE"
 
-                final_label = "FAKE"
+        elif "REAL" in label or "BONA" in label:
+            final_label = "REAL"
 
-            elif "REAL" in label or "BONA" in label:
+        else:
+            final_label = label
 
-                final_label = "REAL"
+        # -------------------------------------------------
+        # Normalize confidence
+        # -------------------------------------------------
 
-            else:
+        try:
+            confidence = float(confidence)
 
-                final_label = label
+        except (TypeError, ValueError):
+            confidence = 0.0
 
-            # -------------------------------------------------
-            # Normalize confidence
-            # -------------------------------------------------
+        # -------------------------------------------------
+        # Final response
+        # -------------------------------------------------
 
-            try:
-                confidence = float(confidence)
-            except (TypeError, ValueError):
-                confidence = 0.0
+        result = {
+            "success": True,
+            "type": "voice",
+            "label": final_label,
+            "confidence": round(confidence, 2),
+            "breakdown": breakdown
+        }
 
-            # -------------------------------------------------
-            # Final response
-            # -------------------------------------------------
+        # -------------------------------------------------
+        # Terminal output
+        # -------------------------------------------------
 
-            result = {
-                "success": True,
-                "label": final_label,
-                "confidence": round(confidence, 2),
-                "breakdown": breakdown
-            }
+        print("\n========================================")
+        print("VOICE DEEPFAKE DETECTION RESULT")
+        print("========================================")
+        print(f"Verdict    : {final_label}")
+        print(f"Confidence : {confidence:.2f}%")
+        print(f"Breakdown  : {breakdown}")
+        print("========================================\n")
 
-            print("\n========================================")
-            print("VOICE DEEPFAKE DETECTION RESULT")
-            print("========================================")
-            print(f"Verdict    : {final_label}")
-            print(f"Confidence : {confidence:.2f}%")
-            print(f"Breakdown  : {breakdown}")
-            print("========================================\n")
-
-            return jsonify(result)
-
-        finally:
-
-            # -------------------------------------------------
-            # Delete temporary uploaded file
-            # -------------------------------------------------
-
-            if os.path.exists(temp_path):
-
-                try:
-                    os.remove(temp_path)
-
-                except OSError:
-                    pass
+        return jsonify(result)
 
     except Exception as error:
 
@@ -201,15 +203,167 @@ def predict_audio():
             "error": str(error)
         }), 500
 
+    finally:
 
-# ---------------------------------------------------------
+        # -------------------------------------------------
+        # Delete temporary uploaded file
+        # -------------------------------------------------
+
+        if temp_path and os.path.exists(temp_path):
+
+            try:
+                os.remove(temp_path)
+
+            except OSError:
+                pass
+
+
+# =========================================================
+# TEXT DEEPFAKE DETECTION
+# =========================================================
+
+@app.route("/predict-text", methods=["POST"])
+def predict_text():
+
+    try:
+
+        # -------------------------------------------------
+        # Get JSON data
+        # -------------------------------------------------
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "No JSON data was provided."
+            }), 400
+
+        # -------------------------------------------------
+        # Get text
+        # -------------------------------------------------
+
+        text = data.get("text", "")
+
+        if not text or not text.strip():
+
+            return jsonify({
+                "success": False,
+                "error": "No text was provided."
+            }), 400
+
+        text = text.strip()
+
+        # -------------------------------------------------
+        # Run text AI detector
+        # -------------------------------------------------
+
+        result = detect_text(text)
+
+        # -------------------------------------------------
+        # Make sure result exists
+        # -------------------------------------------------
+
+        if result is None:
+
+            return jsonify({
+                "success": False,
+                "error": "Text detector did not return a result."
+            }), 500
+
+        # -------------------------------------------------
+        # Extract result
+        # -------------------------------------------------
+
+        label = result.get("label", "UNKNOWN")
+        confidence = result.get("confidence", 0.0)
+
+        # -------------------------------------------------
+        # Normalize label
+        # -------------------------------------------------
+
+        label_upper = str(label).upper()
+
+        if (
+            "AI" in label_upper
+            or "FAKE" in label_upper
+            or "MACHINE" in label_upper
+            or "GENERATED" in label_upper
+        ):
+
+            final_label = "AI-GENERATED"
+
+        elif (
+            "HUMAN" in label_upper
+            or "REAL" in label_upper
+        ):
+
+            final_label = "HUMAN"
+
+        else:
+
+            final_label = label_upper
+
+        # -------------------------------------------------
+        # Normalize confidence
+        # -------------------------------------------------
+
+        try:
+            confidence = float(confidence)
+
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        # -------------------------------------------------
+        # Final response
+        # -------------------------------------------------
+
+        response = {
+            "success": True,
+            "type": "text",
+            "label": final_label,
+            "confidence": round(confidence, 2),
+            "text": text
+        }
+
+        # -------------------------------------------------
+        # Terminal output
+        # -------------------------------------------------
+
+        print("\n========================================")
+        print("TEXT DEEPFAKE DETECTION RESULT")
+        print("========================================")
+        print(f"Text       : {text}")
+        print(f"Verdict    : {final_label}")
+        print(f"Confidence : {confidence:.2f}%")
+        print("========================================\n")
+
+        return jsonify(response)
+
+    except Exception as error:
+
+        print("\n========================================")
+        print("ERROR IN /predict-text")
+        print("========================================")
+
+        traceback.print_exc()
+
+        print("========================================\n")
+
+        return jsonify({
+            "success": False,
+            "error": str(error)
+        }), 500
+
+
+# =========================================================
 # RUN FLASK SERVER
-# ---------------------------------------------------------
+# =========================================================
 
 if __name__ == "__main__":
 
     print("\n========================================")
-    print("REAL vs FAKE VOICE DETECTOR")
+    print("REAL vs FAKE MEDIA VERIFICATION")
     print("========================================")
     print("Server starting...")
     print("Open: http://127.0.0.1:5000/")

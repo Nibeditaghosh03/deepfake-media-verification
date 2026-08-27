@@ -2,29 +2,53 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Real vs Fake Voice Detector</title>
+<title>Real vs Fake Media Detector</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="wrap">
-    <h1>🎙️ Real vs Fake Voice Detector</h1>
-    <p class="sub">Record your voice, or upload a clip, to check if it's REAL or AI-generated FAKE speech.</p>
+    <h1>🕵️ Real vs Fake Media Detector</h1>
+    <p class="sub">Check voice recordings or written text for signs of AI generation.</p>
 
-    <div class="controls">
-      <button id="recordBtn" class="btn record">● Start Recording</button>
-      <span id="timer" class="timer"></span>
-      <label class="btn upload">
-        Upload File
-        <input type="file" id="fileInput" accept="audio/*" hidden>
-      </label>
+    <div class="tabs">
+      <button id="tabVoiceBtn" class="tab active">🎙️ Voice</button>
+      <button id="tabTextBtn" class="tab">📝 Text</button>
     </div>
 
-    <div id="status" class="status"></div>
+    <!-- VOICE PANEL -->
+    <div id="voicePanel" class="panel">
+      <div class="controls">
+        <button id="recordBtn" class="btn record">● Start Recording</button>
+        <span id="timer" class="timer"></span>
+        <label class="btn upload">
+          Upload File
+          <input type="file" id="fileInput" accept="audio/*" hidden>
+        </label>
+      </div>
 
-    <div id="board" class="board idle">
-      <div id="boardLabel" class="board-label">—</div>
-      <div id="boardConfidence" class="board-confidence"></div>
-      <div id="boardBreakdown" class="board-breakdown"></div>
+      <div id="status" class="status"></div>
+
+      <div id="board" class="board idle">
+        <div id="boardLabel" class="board-label">—</div>
+        <div id="boardConfidence" class="board-confidence"></div>
+        <div id="boardBreakdown" class="board-breakdown"></div>
+      </div>
+    </div>
+
+    <!-- TEXT PANEL -->
+    <div id="textPanel" class="panel hidden">
+      <textarea id="textInput" class="text-input" rows="8" placeholder="Paste or type text here to check if it's human-written or AI-generated..."></textarea>
+      <div class="controls">
+        <button id="checkTextBtn" class="btn record">Check Text</button>
+      </div>
+
+      <div id="textStatus" class="status"></div>
+
+      <div id="textBoard" class="board idle">
+        <div id="textBoardLabel" class="board-label">—</div>
+        <div id="textBoardConfidence" class="board-confidence"></div>
+        <div id="textBoardBreakdown" class="board-breakdown"></div>
+      </div>
     </div>
   </div>
 

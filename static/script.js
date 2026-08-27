@@ -879,3 +879,75 @@ function setStatus(message) {
         message;
 
 }
+
+// ============================================================
+// TEXT DETECTION
+// ============================================================
+
+const textInput = document.getElementById("textInput");
+const checkTextBtn = document.getElementById("checkTextBtn");
+const textStatusEl = document.getElementById("textStatus");
+const textBoard = document.getElementById("textBoard");
+const textBoardLabel = document.getElementById("textBoardLabel");
+const textBoardConfidence = document.getElementById("textBoardConfidence");
+
+checkTextBtn.addEventListener("click", async () => {
+  const text = textInput.value.trim();
+  if (!text) {
+    textStatusEl.textContent = "Please enter some text first.";
+    return;
+  }
+
+  textStatusEl.textContent = "Analyzing...";
+
+  try {
+    const res = await fetch("/predict-text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      textStatusEl.textContent = `Error: ${data.error}`;
+      return;
+    }
+
+    textStatusEl.textContent = "Done.";
+    textBoard.classList.remove("idle", "real", "fake");
+
+    if (data.label === "HUMAN") {
+      textBoard.classList.add("real");
+      textBoardLabel.textContent = "🟢 REAL";
+    } else {
+      textBoard.classList.add("fake");
+      textBoardLabel.textContent = "🔴 FAKE";
+    }
+    textBoardConfidence.textContent = `Confidence: ${data.confidence}%`;
+  } catch (err) {
+    textStatusEl.textContent = "Error contacting server. Is app.py running?";
+  }
+});
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+
+const tabVoiceBtn = document.getElementById("tabVoiceBtn");
+const tabTextBtn = document.getElementById("tabTextBtn");
+const voicePanel = document.getElementById("voicePanel");
+const textPanel = document.getElementById("textPanel");
+
+tabVoiceBtn.addEventListener("click", () => {
+  tabVoiceBtn.classList.add("active");
+  tabTextBtn.classList.remove("active");
+  voicePanel.classList.remove("hidden");
+  textPanel.classList.add("hidden");
+});
+
+tabTextBtn.addEventListener("click", () => {
+  tabTextBtn.classList.add("active");
+  tabVoiceBtn.classList.remove("active");
+  textPanel.classList.remove("hidden");
+  voicePanel.classList.add("hidden");
+});
