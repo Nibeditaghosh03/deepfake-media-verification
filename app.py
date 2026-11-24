@@ -12,6 +12,12 @@ from text_detect import detect_text
 app = Flask(__name__)
 CORS(app)
 
+from live_routes import live_bp
+app.register_blueprint(live_bp)
+
+from media_routes import media_bp
+app.register_blueprint(media_bp)    
+
 
 # =========================================================
 # HOME PAGE

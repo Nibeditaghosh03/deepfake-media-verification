@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Live Deepfake Detection</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#111; color:#eee; text-align:center; margin:0; padding:20px; }
+    .wrap { position:relative; display:inline-block; max-width:100%; }
+    video, canvas#overlay { width:640px; max-width:100%; border-radius:8px; }
+    canvas#overlay { position:absolute; left:0; top:0; height:100%; }
+    #label { font-size:28px; font-weight:bold; margin:14px 0; min-height:36px; }
+    button { font-size:16px; padding:10px 18px; margin:6px; border:0; border-radius:6px; cursor:pointer; }
+    #toggle { background:#2d7ff9; color:#fff; }
+    #capture { background:#444; color:#fff; }
+    input { width:70px; padding:4px; }
+    .real { color:#3ddc84; } .fake { color:#ff5252; } .warn { color:#ffb300; }
+  </style>
+</head>
+<body>
+  <h2>Live Deepfake Detection</h2>
+  <p><a href="/" style="color:#2d7ff9;">← Back to main page</a></p>
+  <div class="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div id="label">Starting camera...</div>
+  <div>
+    <button id="toggle">Start live video check</button>
+    <button id="capture">Capture image and check</button>
+  </div>
+  <div>FAKE threshold (0-1): <input id="thr" type="number" value="0.5" min="0" max="1" step="0.05"></div>
+  <p id="snap"></p>
+
+<script>
+const video = document.getElementById("video");
+const overlay = document.getElementById("overlay");
+const labelEl = document.getElementById("label");
+const snapEl = document.getElementById("snap");
+const thrEl = document.getElementById("thr");
+const grab = document.createElement("canvas");
+
+let running = false, busy = false, timer = null;
+const scores = [];          // recent FAKE probabilities (0-1)
+const WINDOW = 5;           // average the last 5 predictions
+
+function threshold() { return parseFloat(thrEl.value) || 0.5; }
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      overlay.width = video.videoWidth;
+      overlay.height = video.videoHeight;
+      labelEl.textContent = "Camera ready";
+    };
+  } catch (e) {
+    labelEl.textContent = "Camera error: " + e.message;
+  }
+}
+
+function frameAsDataUrl() {
+  grab.width = video.videoWidth;
+  grab.height = video.videoHeight;
+  grab.getContext("2d").drawImage(video, 0, 0);
+  return grab.toDataURL("image/jpeg", 0.95);
+}
+
+async function predict() {
+  const res = await fetch("/live-predict", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: frameAsDataUrl() })
+  });
+  return res.json();
+}
+
+function drawBox(box, color) {
+  const ctx = overlay.getContext("2d");
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!box) return;
+  ctx.strokeStyle = color; ctx.lineWidth = 4;
+  ctx.strokeRect(box[0], box[1], box[2], box[3]);
+}
+
+async function tick() {
+  if (busy || !video.videoWidth) return;
+  busy = true;
+  try {
+    const r = await predict();
+    if (!r.face) {
+      scores.length = 0;
+      labelEl.className = "warn";
+      labelEl.textContent = "No face found";
+      drawBox(null);
+    } else {
+      scores.push(r.fake_probability / 100);
+      if (scores.length > WINDOW) scores.shift();
+      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+      const isFake = avg >= threshold();
+      const conf = (isFake ? avg : 1 - avg) * 100;
+      labelEl.className = isFake ? "fake" : "real";
+      labelEl.textContent = (isFake ? "FAKE " : "REAL ") + conf.toFixed(1) + "%";
+      drawBox(r.box, isFake ? "#ff5252" : "#3ddc84");
+    }
+  } catch (e) {
+    labelEl.textContent = "Error: " + e.message;
+  }
+  busy = false;
+}
+
+document.getElementById("toggle").onclick = (ev) => {
+  running = !running;
+  ev.target.textContent = running ? "Stop live video check" : "Start live video check";
+  if (running) { scores.length = 0; timer = setInterval(tick, 1000); }
+  else { clearInterval(timer); drawBox(null); }
+};
+
+document.getElementById("capture").onclick = async () => {
+  snapEl.textContent = "Checking 5 frames...";
+  const probs = [];
+  try {
+    for (let i = 0; i < 5; i++) {
+      const r = await predict();
+      if (r.face) probs.push(r.fake_probability / 100);
+      await new Promise(res => setTimeout(res, 300));
+    }
+    if (!probs.length) { snapEl.textContent = "No face found in the snapshot."; return; }
+    const avg = probs.reduce((a, b) => a + b, 0) / probs.length;
+    const isFake = avg >= threshold();
+    snapEl.innerHTML = "Snapshot (" + probs.length + " frames): <b class='" +
+      (isFake ? "fake" : "real") + "'>" + (isFake ? "FAKE" : "REAL") + "</b> | fake " +
+      (avg * 100).toFixed(2) + "% / real " + ((1 - avg) * 100).toFixed(2) +
+      "%<br><small>fake % per frame: " + probs.map(p => (p * 100).toFixed(0)).join(", ") + "</small>";
+  } catch (e) { snapEl.textContent = "Error: " + e.message; }
+};
+
+startCamera();
+</script>
+</body>
+</html>
