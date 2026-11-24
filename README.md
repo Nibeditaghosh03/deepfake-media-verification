@@ -1,4 +1,19 @@
+---
+
+title: Deepfake Media Verification
+emoji: ⚡
+colorFrom: gray
+colorTo: pink
+sdk: gradio
+sdk_version: 6.32.0
+python_version: '3.12'
+app_file: app.py
+pinned: false
+short_description: Real vs fake detection for voice, text, image and live video
+---
+
 # Deepfake Media Detector — Voice + Text
+
 
 A web dashboard and CLI toolset that detects whether **voice audio** is human or AI-generated, and whether **written text** is human-written or AI-generated. Built on real pretrained models — no training required, no API keys needed.
 
