@@ -1,3 +1,12 @@
+try:
+    import spaces
+
+    @spaces.GPU
+    def _gpu_placeholder():
+        return 0
+except ImportError:
+    pass
+
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
